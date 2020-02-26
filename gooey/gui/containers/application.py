@@ -51,6 +51,7 @@ class GooeyApplication(wx.Frame):
             self.buildSpec.get('progress_expr'),
             self.buildSpec.get('hide_progress_msg'),
             self.buildSpec.get('encoding'),
+            self.buildSpec.get('encoding_candidates'),
             self.buildSpec.get('requires_shell'),
         )
 

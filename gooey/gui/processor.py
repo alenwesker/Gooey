@@ -11,15 +11,15 @@ from gooey.gui.util.casting import safe_float
 from gooey.gui.util.taskkill import taskkill
 from gooey.util.functional import unit, bind
 
-
 class ProcessController(object):
     def __init__(self, progress_regex, progress_expr, hide_progress_msg,
-                 encoding, shell=True):
+                 encoding, encoding_candidates, shell=True):
         self._process = None
         self.progress_regex = progress_regex
         self.progress_expr = progress_expr
         self.hide_progress_msg = hide_progress_msg
         self.encoding = encoding
+        self.encoding_candidates = encoding_candidates
         self.wasForcefullyStopped = False
         self.shell_execution = shell
 
@@ -59,6 +59,21 @@ class ProcessController(object):
         t = Thread(target=self._forward_stdout, args=(self._process,))
         t.start()
 
+    def _noexception_decode(self, str_to_decode):
+        try:
+			decoded = str_to_decode.decode(self.encoding)
+			return decoded
+        except Exception as e:
+			decoded = None
+			for encoding in self.encoding_candidates:
+				try:
+					decoded = str_to_decode.decode(encoding)
+					break
+				except Exception as e:
+					#print e.message
+					pass
+			return decoded if decoded else "error decoded"
+
     def _forward_stdout(self, process):
         '''
         Reads the stdout of `process` and forwards lines and progress
@@ -72,7 +87,7 @@ class ProcessController(object):
             pub.send_message(events.PROGRESS_UPDATE, progress=_progress)
             if _progress is None or self.hide_progress_msg is False:
                 pub.send_message(events.CONSOLE_UPDATE,
-                                 msg=line.decode(self.encoding))
+                                 msg=self._noexception_decode(line))
         pub.send_message(events.EXECUTION_COMPLETE)
 
     def _extract_progress(self, text):
@@ -81,7 +96,8 @@ class ProcessController(object):
         user-supplied regex and calculation instructions
         '''
         # monad-ish dispatch to avoid the if/else soup
-        find = partial(re.search, string=text.strip().decode(self.encoding))
+
+        find = partial(re.search, string=self._noexception_decode(text.strip()) )
         regex = unit(self.progress_regex)
         match = bind(regex, find)
         result = bind(match, self._calculate_progress)
